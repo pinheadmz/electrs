@@ -6,8 +6,34 @@ use bitcoin::{Amount, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::{json, jsonrpc, Auth, Client, RpcApi};
 use crossbeam_channel::Receiver;
 use parking_lot::Mutex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, value::RawValue, Value};
+
+/// Minimal subset of `getmempoolentry` fields actually used by electrs.
+///
+/// Bitcoin Core's `getmempoolentry` response shape evolves across releases
+/// (e.g. the "cluster mempool" rewrite in v31.0 added `chunkweight`/`chunk`
+/// and is gradually changing the surrounding ancestor/descendant fields).
+/// Deserializing into the full `bitcoincore_rpc::json::GetMempoolEntryResult`
+/// fails as soon as any expected field disappears -- and electrs's mempool
+/// sync loop silently drops those entries to `None`, so the mempool view
+/// stays empty and Electrum clients never see unconfirmed transactions.
+///
+/// Only deserialize what we actually need: vsize, the base fee, and the
+/// parent set used to compute `has_unconfirmed_inputs`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct MempoolEntry {
+    #[serde(alias = "size")]
+    pub vsize: u64,
+    pub fees: MempoolEntryFees,
+    pub depends: Vec<bitcoin::Txid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct MempoolEntryFees {
+    #[serde(with = "bitcoin::amount::serde::as_btc")]
+    pub base: bitcoin::Amount,
+}
 
 use std::fs::File;
 use std::io::Read;
@@ -241,11 +267,11 @@ impl Daemon {
     pub(crate) fn get_mempool_entries(
         &self,
         txids: &[Txid],
-    ) -> Result<Vec<Option<json::GetMempoolEntryResult>>> {
+    ) -> Result<Vec<Option<MempoolEntry>>> {
         let results = batch_request(self.rpc.get_jsonrpc_client(), "getmempoolentry", txids)?;
         Ok(results
             .into_iter()
-            .map(|r| match r?.result::<json::GetMempoolEntryResult>() {
+            .map(|r| match r?.result::<MempoolEntry>() {
                 Ok(entry) => Some(entry),
                 Err(err) => {
                     debug!("failed to get mempool entry: {}", err); // probably due to RBF
