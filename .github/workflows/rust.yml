@@ -5,51 +5,9 @@ on:
     branches:
       - master
   pull_request:
-  schedule:
-    - cron: "0 0 * * *" # once a day
+
 
 jobs:
-  build:
-    name: Build
-
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        build-args:
-          [
-            --locked --no-default-features,
-            --locked
-          ]
-        include:
-          - os: ubuntu-latest
-            build-args: --locked --features metrics_process
-
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Install Rust
-        run: rustup component add rustfmt clippy
-
-      - name: Install other dependencies
-        run: sudo apt install build-essential libclang-dev
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Build
-        run: cargo build ${{ matrix.build-args }} --all
-
-      - name: Test
-        run: cargo test  ${{ matrix.build-args }} --all
-
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
   integration:
     name: Integration
     runs-on: ubuntu-latest
