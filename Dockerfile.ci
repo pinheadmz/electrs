@@ -20,7 +20,7 @@ RUN cargo install --locked --path .
 ### Bitcoin Core ###
 # Integration test against bitcoin/bitcoin#35182 (HTTP server rewrite)
 # at commit ddefe4263b42aa050a4bd55c073e1640f06e7332.
-FROM pinheadmz/bitcoin:pr35182-ddefe4263b AS bitcoin-build
+FROM pinheadmz/bitcoin:pr35182-bb0e968 AS bitcoin-build
 
 FROM base AS result
 # Copy the binaries
