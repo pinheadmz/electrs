@@ -8,6 +8,27 @@ use crate::types::Auth;
 use serde::Serialize;
 use serde_json::{json, value::RawValue, Value};
 
+/// Minimal subset of `getmempoolentry` fields actually used by electrs.
+///
+/// Bitcoin Core's `getmempoolentry` response shape evolves across releases
+/// (e.g. the "cluster mempool" rewrite in v31.0 added `chunkweight`/`chunk`
+/// and is gradually changing the surrounding ancestor/descendant fields).
+/// Deserializing into the full `bitcoincore_rpc::json::GetMempoolEntryResult`
+/// fails as soon as any expected field disappears -- and electrs's mempool
+/// sync loop silently drops those entries to `None`, so the mempool view
+/// stays empty and Electrum clients never see unconfirmed transactions.
+///
+/// Only deserialize what we actually need: vsize, the base fee, and the
+/// parent set used to compute `has_unconfirmed_inputs`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct MempoolEntryResult {
+    #[serde(rename = "vsize")]
+    pub vsize: u64,
+    pub fee: f64,
+    #[serde(default)]
+    pub depends: Vec<Txid>,
+}
+
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
